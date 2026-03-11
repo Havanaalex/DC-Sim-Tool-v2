@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DC Move Simulator</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f0ede8;
+  --surface: #faf8f5;
+  --surface2: #e8e4dd;
+  --border: #d4cfc7;
+  --ink: #1a1714;
+  --ink2: #4a4540;
+  --ink3: #8a847c;
+  --accent: #c8371a;
+  --accent2: #1a5fc8;
+  --accent3: #1a8c3a;
+  --warn: #c87a1a;
+  --mono: 'DM Mono', monospace;
+  --sans: 'DM Sans', sans-serif;
+  --display: 'Bebas Neue', sans-serif;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--ink); font-family:var(--sans); min-height:100vh; }
+
+/* Grain overlay */
+body::after {
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:999;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity:0.5;
+}
+
+/* Layout */
+.shell { display:grid; grid-template-rows:auto 1fr; min-height:100vh; }
+
+/* HEADER */
+.header {
+  background:var(--ink); color:var(--bg); padding:0 32px;
+  display:flex; align-items:center; gap:24px; height:56px;
+  border-bottom:3px solid var(--accent);
+}
+.header-logo { font-family:var(--display); font-size:28px; letter-spacing:2px; color:#fff; line-height:1; }
+.header-sub { font-family:var(--mono); font-size:10px; color:var(--ink3); letter-spacing:2px; text-transform:uppercase; border-left:1px solid #333; padding-left:16px; }
+.header-right { margin-left:auto; display:flex; align-items:center; gap:12px; }
+.hbtn { font-family:var(--mono); font-size:11px; padding:6px 14px; border-radius:3px; border:1px solid #444; background:transparent; color:#ccc; cursor:pointer; transition:all 0.15s; }
+.hbtn:hover { background:#333; color:#fff; }
+.hbtn.primary { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:500; }
+.hbtn.primary:hover { filter:brightness(1.1); }
+
+/* BODY */
+.body { display:grid; grid-template-columns:320px 1fr; }
+
+/* LEFT PANEL — Config */
+.config-panel {
+  background:var(--surface); border-right:1px solid var(--border);
+  overflow-y:auto; padding:24px 20px; display:flex; flex-direction:column; gap:20px;
+}
+.section-label {
+  font-family:var(--display); font-size:18px; letter-spacing:1px; color:var(--ink);
+  border-bottom:2px solid var(--accent); padding-bottom:6px; margin-bottom:14px;
+}
+
+/* Form controls */
+.field { display:flex; flex-direction:column; gap:5px; margin-bottom:12px; }
+.field label { font-family:var(--mono); font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--ink3); }
+.field input, .field select {
+  background:var(--bg); border:1px solid var(--border); color:var(--ink);
+  font-family:var(--mono); font-size:12px; padding:8px 10px; border-radius:3px;
+  outline:none; transition:border-color 0.15s;
+}
+.field input:focus, .field select:focus { border-color:var(--accent); }
+.field input[type=range] { padding:4px 0; background:transparent; cursor:pointer; accent-color:var(--accent); }
+.range-val { font-family:var(--display); font-size:22px; color:var(--accent); line-height:1; }
+
+.toggle-row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border); }
+.toggle-label { font-size:12px; color:var(--ink2); }
+.toggle { position:relative; width:36px; height:20px; }
+.toggle input { opacity:0; width:0; height:0; }
+.toggle-slider { position:absolute; inset:0; background:var(--border); border-radius:20px; cursor:pointer; transition:0.2s; }
+.toggle-slider:before { content:''; position:absolute; width:14px; height:14px; left:3px; top:3px; background:#fff; border-radius:50%; transition:0.2s; }
+.toggle input:checked + .toggle-slider { background:var(--accent); }
+.toggle input:checked + .toggle-slider:before { transform:translateX(16px); }
+
+.cat-config { background:var(--bg); border:1px solid var(--border); border-radius:4px; padding:10px; margin-bottom:6px; }
+.cat-config-header { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.cat-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.cat-config-name { font-size:12px; font-weight:600; flex:1; }
+.cat-config-skus { font-family:var(--mono); font-size:10px; color:var(--ink3); }
+.cat-priority { display:flex; gap:4px; }
+.prio-btn { font-family:var(--mono); font-size:9px; padding:2px 7px; border-radius:2px; border:1px solid var(--border); background:transparent; cursor:pointer; transition:all 0.1s; color:var(--ink2); }
+.prio-btn.active { color:#fff; border-color:transparent; }
+.prio-btn.high.active { background:var(--accent); }
+.prio-btn.med.active { background:var(--warn); }
+.prio-btn.low.active { background:var(--accent3); }
+
+/* RIGHT PANEL — Simulation */
+.sim-panel { overflow-y:auto; padding:24px; display:flex; flex-direction:column; gap:20px; }
+
+/* Score cards */
+.score-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+.score-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:16px;
+  position:relative; overflow:hidden;
+}
+.score-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; }
+.score-card.red::before { background:var(--accent); }
+.score-card.blue::before { background:var(--accent2); }
+.score-card.green::before { background:var(--accent3); }
+.score-card.amber::before { background:var(--warn); }
+.score-label { font-family:var(--mono); font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:var(--ink3); margin-bottom:6px; }
+.score-value { font-family:var(--display); font-size:38px; line-height:1; }
+.score-value.red { color:var(--accent); }
+.score-value.blue { color:var(--accent2); }
+.score-value.green { color:var(--accent3); }
+.score-value.amber { color:var(--warn); }
+.score-sub { font-size:11px; color:var(--ink3); margin-top:4px; }
+
+/* Plan comparison */
+.plans-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+.plan-card {
+  background:var(--surface); border:2px solid var(--border); border-radius:6px;
+  padding:18px; cursor:pointer; transition:all 0.2s; position:relative;
+}
+.plan-card:hover { border-color:var(--ink2); }
+.plan-card.selected { border-color:var(--accent); }
+.plan-card.best { border-color:var(--accent3); }
+.plan-badge { position:absolute; top:-1px; right:12px; font-family:var(--mono); font-size:9px; font-weight:500; padding:3px 8px; border-radius:0 0 4px 4px; }
+.plan-badge.best { background:var(--accent3); color:#fff; }
+.plan-badge.fastest { background:var(--accent2); color:#fff; }
+.plan-badge.cheapest { background:var(--warn); color:#fff; }
+.plan-name { font-family:var(--display); font-size:22px; letter-spacing:1px; margin-bottom:10px; }
+.plan-stats { display:flex; flex-direction:column; gap:6px; }
+.plan-stat { display:flex; justify-content:space-between; align-items:center; font-size:11px; padding:5px 0; border-bottom:1px solid var(--border); }
+.plan-stat:last-child { border:none; }
+.plan-stat-key { color:var(--ink3); font-family:var(--mono); font-size:10px; }
+.plan-stat-val { font-weight:600; }
+.plan-score { display:flex; align-items:center; gap:6px; margin-top:10px; }
+.plan-score-bar { flex:1; height:6px; background:var(--surface2); border-radius:3px; overflow:hidden; }
+.plan-score-fill { height:100%; border-radius:3px; transition:width 0.6s ease; }
+
+/* Gantt */
+.gantt-wrap { background:var(--surface); border:1px solid var(--border); border-radius:4px; overflow:hidden; }
+.gantt-header { padding:14px 16px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+.gantt-title { font-family:var(--display); font-size:20px; letter-spacing:1px; }
+.gantt-body { overflow-x:auto; }
+.gantt-table { width:100%; min-width:700px; border-collapse:collapse; }
+.gantt-table th { font-family:var(--mono); font-size:9px; letter-spacing:1px; text-transform:uppercase; color:var(--ink3); padding:8px 12px; border-bottom:1px solid var(--border); text-align:left; font-weight:400; white-space:nowrap; }
+.gantt-table td { padding:6px 12px; border-bottom:1px solid rgba(212,207,199,0.4); font-size:12px; vertical-align:middle; }
+.gantt-table tr:hover td { background:var(--bg); }
+.gantt-bar-cell { width:100%; min-width:300px; }
+.gantt-bar-track { position:relative; height:28px; background:var(--surface2); border-radius:3px; overflow:hidden; }
+.gantt-bar { position:absolute; top:4px; height:20px; border-radius:2px; display:flex; align-items:center; padding:0 6px; font-family:var(--mono); font-size:9px; color:#fff; font-weight:500; transition:all 0.4s ease; white-space:nowrap; overflow:hidden; }
+.gantt-day-marker { position:absolute; top:0; bottom:0; width:1px; background:rgba(0,0,0,0.1); }
+
+/* Simulation playback */
+.sim-controls { display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:14px 16px; }
+.sim-btn { font-family:var(--mono); font-size:11px; padding:6px 14px; border:1px solid var(--border); background:var(--bg); border-radius:3px; cursor:pointer; transition:all 0.15s; color:var(--ink); }
+.sim-btn:hover { background:var(--ink); color:#fff; }
+.sim-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+.sim-progress { flex:1; display:flex; flex-direction:column; gap:4px; }
+.sim-day-label { font-family:var(--mono); font-size:10px; color:var(--ink3); }
+.sim-bar { height:8px; background:var(--surface2); border-radius:4px; overflow:hidden; cursor:pointer; }
+.sim-bar-fill { height:100%; background:var(--accent); border-radius:4px; transition:width 0.3s ease; }
+.sim-speed { display:flex; gap:4px; align-items:center; font-family:var(--mono); font-size:10px; color:var(--ink3); }
+
+/* Risk matrix */
+.risk-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.risk-item { background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:14px; display:flex; gap:12px; }
+.risk-level { width:4px; border-radius:2px; flex-shrink:0; }
+.risk-level.high { background:var(--accent); }
+.risk-level.med { background:var(--warn); }
+.risk-level.low { background:var(--accent3); }
+.risk-title { font-size:12px; font-weight:600; margin-bottom:3px; }
+.risk-desc { font-size:11px; color:var(--ink3); line-height:1.4; }
+.risk-badge { font-family:var(--mono); font-size:9px; padding:2px 6px; border-radius:2px; margin-top:5px; display:inline-block; }
+.risk-badge.high { background:rgba(200,55,26,0.1); color:var(--accent); }
+.risk-badge.med { background:rgba(200,122,26,0.1); color:var(--warn); }
+.risk-badge.low { background:rgba(26,140,58,0.1); color:var(--accent3); }
+
+/* Daily schedule */
+.day-schedule { display:flex; flex-direction:column; gap:0; }
+.day-row { display:grid; grid-template-columns:80px 1fr; border-bottom:1px solid var(--border); }
+.day-num { padding:10px 12px; font-family:var(--display); font-size:24px; color:var(--ink3); border-right:1px solid var(--border); display:flex; flex-direction:column; justify-content:center; }
+.day-label { font-family:var(--mono); font-size:8px; letter-spacing:1px; color:var(--ink3); text-transform:uppercase; }
+.day-events { padding:8px 12px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.day-event { font-family:var(--mono); font-size:10px; padding:4px 10px; border-radius:2px; }
+.day-event.load { background:rgba(200,55,26,0.1); color:var(--accent); border:1px solid rgba(200,55,26,0.2); }
+.day-event.transit { background:rgba(26,95,200,0.1); color:var(--accent2); border:1px solid rgba(26,95,200,0.2); }
+.day-event.receive { background:rgba(26,140,58,0.1); color:var(--accent3); border:1px solid rgba(26,140,58,0.2); }
+.day-event.rest { background:var(--surface2); color:var(--ink3); border:1px solid var(--border); }
+
+/* Tab nav */
+.tab-nav { display:flex; gap:0; border-bottom:2px solid var(--border); margin-bottom:0; }
+.tab { font-family:var(--mono); font-size:11px; padding:10px 18px; cursor:pointer; color:var(--ink3); border-bottom:2px solid transparent; margin-bottom:-2px; transition:all 0.15s; }
+.tab:hover { color:var(--ink); }
+.tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.tab-content { display:none; }
+.tab-content.active { display:block; }
+
+/* Animations */
+@keyframes slideIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+.running-dot { width:8px; height:8px; border-radius:50%; background:var(--accent); animation:pulse 1s infinite; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width:5px; height:5px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+
+.divider { border:none; border-top:1px solid var(--border); margin:4px 0; }
+.info-box { background:rgba(26,95,200,0.06); border:1px solid rgba(26,95,200,0.2); border-radius:4px; padding:10px 12px; font-size:11px; color:var(--accent2); line-height:1.5; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-logo">MOVE SIMULATOR</div>
+  <div class="header-sub">Wildfork Foods · 842 SKUs · 328,139 Cases · 5.89M lbs</div>
+  <div class="header-right">
+    <span id="sim-status" style="font-family:var(--mono);font-size:11px;color:#666;">Ready</span>
+    <div class="running-dot" id="run-dot" style="display:none"></div>
+    <button class="hbtn primary" onclick="runSimulation()">▶ Run Simulation</button>
+    <button class="hbtn" onclick="exportPlan()">↓ Export Plan</button>
+  </div>
+</header>
+
+<div class="body">
+
+<!-- LEFT: CONFIG -->
+<aside class="config-panel">
+
+  <div style="background:var(--ink);color:#fff;border-radius:4px;padding:14px;margin-bottom:4px;">
+    <div style="font-family:var(--display);font-size:14px;letter-spacing:1px;color:#aaa;margin-bottom:8px;">✓ LIVE INVENTORY LOADED</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+      <div><div style="font-family:var(--display);font-size:22px;color:var(--accent)">842</div><div style="font-size:10px;color:#888">Total SKUs</div></div>
+      <div><div style="font-family:var(--display);font-size:22px;color:#e8891a">328K</div><div style="font-size:10px;color:#888">Total Cases</div></div>
+      <div><div style="font-family:var(--display);font-size:22px;color:#1a5fc8">5.89M</div><div style="font-size:10px;color:#888">Lbs to Move</div></div>
+      <div><div style="font-family:var(--display);font-size:22px;color:#c8371a">10,185</div><div style="font-size:10px;color:#888">Distressed Cases</div></div>
+    </div>
+    <div style="margin-top:10px;padding-top:8px;border-top:1px solid #333;font-size:10px;color:#888">Wildfork_InventoryDetails.xlsx · 7,978 rows · 8 categories</div>
+  </div>
+
+  <div>
+    <div class="field">
+      <label>Total SKUs to Move</label>
+      <input type="number" id="p-skus" value="842" min="1" max="5000">
+    </div>
+    <div class="field">
+      <label>Move Window (days)</label>
+      <input type="number" id="p-days" value="90" min="10" max="365">
+    </div>
+    <div class="field">
+      <label>Transit Time per Trip (days)</label>
+      <input type="number" id="p-transit" value="3" min="1" max="14">
+    </div>
+    <div class="field">
+      <label>Reefer Trucks Available</label>
+      <input type="number" id="p-trucks" value="3" min="1" max="20">
+    </div>
+    <div class="field">
+      <label>Cases per Truck Capacity</label>
+      <div class="range-val" id="cap-val">400</div>
+      <input type="range" id="p-capacity" min="100" max="1200" value="400" step="50" oninput="document.getElementById('cap-val').textContent=this.value">
+    </div>
+    <div class="field">
+      <label>Cost per Truck Trip ($)</label>
+      <input type="number" id="p-cost" value="4200" min="500" max="50000">
+    </div>
+    <div class="field">
+      <label>Team Size (people)</label>
+      <input type="number" id="p-team" value="6" min="1" max="50">
+    </div>
+    <div class="field">
+      <label>Loading Days per Week</label>
+      <input type="number" id="p-workdays" value="5" min="1" max="7">
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">Optimise For</div>
+    <div class="toggle-row">
+      <span class="toggle-label">⏱ Minimize move duration</span>
+      <label class="toggle"><input type="checkbox" id="opt-speed" checked><span class="toggle-slider"></span></label>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label">💰 Minimize truck cost</span>
+      <label class="toggle"><input type="checkbox" id="opt-cost" checked><span class="toggle-slider"></span></label>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label">🌡 Cold chain integrity</span>
+      <label class="toggle"><input type="checkbox" id="opt-cold" checked><span class="toggle-slider"></span></label>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label">👥 Balance team workload</span>
+      <label class="toggle"><input type="checkbox" id="opt-team" checked><span class="toggle-slider"></span></label>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">Category Priorities</div>
+    <div class="info-box" style="margin-bottom:12px">Set each category's move priority. High = move first. This affects loading order and truck assignment.</div>
+    <div id="cat-priority-list"></div>
+  </div>
+
+  <div>
+    <div class="section-label">Constraints</div>
+    <div class="toggle-row">
+      <span class="toggle-label">Exotics require special handling</span>
+      <label class="toggle"><input type="checkbox" id="c-exotic" checked><span class="toggle-slider"></span></label>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label">No mixed categories per truck</span>
+      <label class="toggle"><input type="checkbox" id="c-nomix"><span class="toggle-slider"></span></label>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label">Weekends = no loading</span>
+      <label class="toggle"><input type="checkbox" id="c-weekends" checked><span class="toggle-slider"></span></label>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label">Buffer week before go-live</span>
+      <label class="toggle"><input type="checkbox" id="c-buffer" checked><span class="toggle-slider"></span></label>
+    </div>
+    <div class="field" style="margin-top:10px;">
+      <label>Max parallel trucks at once</label>
+      <input type="number" id="c-parallel" value="2" min="1" max="10">
+    </div>
+  </div>
+
+</aside>
+
+<!-- RIGHT: SIMULATION -->
+<main class="sim-panel" id="sim-panel">
+
+  <!-- IDLE STATE -->
+  <div id="idle-state" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:16px;text-align:center;">
+    <div style="font-family:var(--display);font-size:72px;letter-spacing:4px;color:var(--border);line-height:1;">SIMULATE</div>
+    <div style="font-size:13px;color:var(--ink3);max-width:380px;line-height:1.6;">Configure your move parameters on the left, then hit <strong>Run Simulation</strong> to generate optimised plans, a Gantt schedule, risk analysis, and a day-by-day loading calendar.</div>
+    <button class="hbtn primary" onclick="runSimulation()" style="margin-top:8px;font-size:13px;padding:10px 24px;">▶ Run Simulation</button>
+  </div>
+
+  <!-- RESULTS (hidden until sim runs) -->
+  <div id="sim-results" style="display:none;flex-direction:column;gap:20px;">
+
+    <!-- KPI Row -->
+    <div class="score-grid" id="kpi-grid"></div>
+
+    <!-- Plan Comparison -->
+    <div>
+      <div style="font-family:var(--display);font-size:22px;letter-spacing:1px;margin-bottom:14px;">PLAN COMPARISON</div>
+      <div class="plans-grid" id="plans-grid"></div>
+    </div>
+
+    <!-- Tabs -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;overflow:hidden;">
+      <div class="tab-nav">
+        <div class="tab active" onclick="switchTab('gantt',this)">Gantt Schedule</div>
+        <div class="tab" onclick="switchTab('daily',this)">Day-by-Day</div>
+        <div class="tab" onclick="switchTab('risk',this)">Risk Analysis</div>
+        <div class="tab" onclick="switchTab('playback',this)">Simulation Playback</div>
+      </div>
+
+      <!-- GANTT -->
+      <div class="tab-content active" id="tab-gantt" style="padding:16px;">
+        <div class="gantt-body">
+          <table class="gantt-table" id="gantt-table"></table>
+        </div>
+      </div>
+
+      <!-- DAILY -->
+      <div class="tab-content" id="tab-daily" style="max-height:500px;overflow-y:auto;">
+        <div class="day-schedule" id="daily-schedule"></div>
+      </div>
+
+      <!-- RISK -->
+      <div class="tab-content" id="tab-risk" style="padding:16px;">
+        <div class="risk-grid" id="risk-grid"></div>
+      </div>
+
+      <!-- PLAYBACK -->
+      <div class="tab-content" id="tab-playback" style="padding:16px;display:flex;flex-direction:column;gap:16px;">
+        <div class="sim-controls">
+          <button class="sim-btn" id="pb-rewind" onclick="pbRewind()">⏮ Restart</button>
+          <button class="sim-btn active" id="pb-play" onclick="pbToggle()">⏸ Pause</button>
+          <button class="sim-btn" onclick="pbStep()">⏭ Step</button>
+          <div class="sim-progress">
+            <div class="sim-day-label">Day <span id="pb-day">1</span> of <span id="pb-total">90</span> — <span id="pb-event"></span></div>
+            <div class="sim-bar" onclick="pbClick(event)"><div class="sim-bar-fill" id="pb-fill" style="width:0%"></div></div>
+          </div>
+          <div class="sim-speed">
+            Speed:
+            <select id="pb-speed" style="background:var(--bg);border:1px solid var(--border);color:var(--ink);font-family:var(--mono);font-size:10px;padding:3px 6px;border-radius:3px;">
+              <option value="800">0.5×</option>
+              <option value="400" selected>1×</option>
+              <option value="150">2×</option>
+              <option value="50">5×</option>
+            </select>
+          </div>
+        </div>
+        <div id="pb-board" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;"></div>
+        <div id="pb-log" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:12px;height:160px;overflow-y:auto;font-family:var(--mono);font-size:11px;display:flex;flex-direction:column;gap:4px;"></div>
+      </div>
+
+    </div>
+
+    <!-- Recommendation box -->
+    <div id="recommendation-box" style="background:var(--ink);color:#fff;border-radius:4px;padding:20px;"></div>
+
+  </div>
+</main>
+
+</div>
+</div>
+
+<script>
+// ====== REAL INVENTORY — Wildfork_InventoryDetails.xlsx ======
+// 842 SKUs | 328,139 cases | 5,889,976 lbs total
+const INVENTORY_SUMMARY = { totalSKUs:842, totalCases:328139, totalWeight:5889976, totalAvailable:316805, totalDistressed:10185 };
+const CATEGORIES = [
+  { name:'Beef',              skus:214, cases:121908, net_wt:2632899, available:115419, distressed:5345, color:'#c8371a', priority:'high', handlingDays:0 },
+  { name:'Poultry',           skus:96,  cases:51448,  net_wt:996300,  available:51408,  distressed:40,   color:'#e8891a', priority:'high', handlingDays:0 },
+  { name:'Other',             skus:186, cases:49775,  net_wt:684147,  available:48210,  distressed:1565, color:'#8a847c', priority:'low',  handlingDays:0 },
+  { name:'Seafood',           skus:84,  cases:33786,  net_wt:458351,  available:30675,  distressed:3111, color:'#1a5fc8', priority:'high', handlingDays:1 },
+  { name:'Ready Meals & Sides', skus:109, cases:29440, net_wt:334814, available:29412, distressed:28,   color:'#1a8c3a', priority:'low',  handlingDays:0 },
+  { name:'Exotics',           skus:102, cases:27201,  net_wt:612928,  available:27105,  distressed:96,   color:'#7a1ac8', priority:'med',  handlingDays:2 },
+  { name:'Grinds',            skus:19,  cases:8849,   net_wt:109971,  available:8849,   distressed:0,    color:'#c87a1a', priority:'med',  handlingDays:0 },
+  { name:'Sausages',          skus:32,  cases:5732,   net_wt:60566,   available:5732,   distressed:0,    color:'#c81a4a', priority:'low',  handlingDays:0 },
+];
+const TOP_PRODUCTS = {
+  'Beef':    ['Outside Skirt Steak Chimichurri (3,062 cases)','Outside Skirt Steak Choice Angus (3,053)','Whole Tenderloin BR (3,332)','BI Tomahawk Ribeye Choice (2,904)','Beef Ribeye Steak (2,166)'],
+  'Poultry': ['Chicken Drumsticks 5lb (2,984 cases)','Chicken BLSL Breast Organic (3,877)','Chicken Hearts 2.5lb (2,708)','Chicken BLSL Thighs 5lb (2,202)','Chicken Thin Sliced Breast (2,574)'],
+  'Seafood': ['Snow Crab Clusters 10×2lb (2,520 cases)','Skinless Atlantic Salmon (1,651)','Argentine Red Shrimp 1lb (1,908)','Atlantic Salmon Fillet (991)','Sockeye Salmon 1.5lb (1,070)'],
+  'Exotics': ['Pork Back Ribs 12lb (942 cases)','Lamb BI Rib Rack ABF (917)','Pork Whole BI Butt Roast (377)','Lamb Leg Roast (743)','KC Style St. Louis Ribs (510)'],
+  'Ready Meals & Sides': ['Cheese Bread FW (1,047 cases)','Key Lime Pie (889)','Ripe Plantain Slices (657)','Basque Burnt Cheesecake (2,307)','Shepherds Pie GF 32oz (400)'],
+  'Grinds':  ['Meatball & Meatloaf Mix (847 cases)','Ground Wagyu 1lb (1,201)','Bison Ground Lean 85% (1,175)','Ground Lamb 1lb (816)','Berkshire Ground Pork (528)'],
+  'Sausages':['Uncured Argentina Bombon (686 cases)','Uncured Argentina Pork (491)','Uncured Argentina Blood Sausage (329)','Bison Hot Dogs (679)','Berkshire Pork Breakfast (208)'],
+  'Other':   ['Outside Skirt GF Australian (897 cases)','NY Steak Choice Angus (828)','Marrow Bones Variety (1,056)','GF Marrow Bones Discs (615)','Flat Iron Steak Choice Angus (501)'],
+};
+
+// ====== RENDER CAT PRIORITY LIST ======
+function renderCatPriorityList() {
+  const el = document.getElementById('cat-priority-list');
+  el.innerHTML = CATEGORIES.map((c,i)=>`
+    <div class="cat-config">
+      <div class="cat-config-header">
+        <div class="cat-dot" style="background:${c.color}"></div>
+        <div class="cat-config-name">${c.name}</div>
+        <div class="cat-config-skus" style="font-size:9px;text-align:right">${c.skus} SKUs<br>${(c.cases/1000).toFixed(0)}K cases</div>
+      </div>
+      <div style="font-size:10px;color:var(--ink3);margin-bottom:6px;">${(c.net_wt/1000).toFixed(0)}K lbs · ${c.distressed>0?`<span style="color:var(--accent)">${c.distressed.toLocaleString()} distressed</span>`:'✓ No distress'}</div>
+      ${TOP_PRODUCTS[c.name] ? `<div style="font-size:9px;color:var(--ink3);margin-bottom:6px;line-height:1.5">Top: ${TOP_PRODUCTS[c.name][0]}</div>` : ''}
+      <div class="cat-priority">
+        <button class="prio-btn high ${c.priority==='high'?'active':''}" onclick="setPrio(${i},'high',this)">HIGH</button>
+        <button class="prio-btn med ${c.priority==='med'?'active':''}" onclick="setPrio(${i},'med',this)">MED</button>
+        <button class="prio-btn low ${c.priority==='low'?'active':''}" onclick="setPrio(${i},'low',this)">LOW</button>
+      </div>
+    </div>`).join('');
+}
+
+function setPrio(idx, prio, btn) {
+  CATEGORIES[idx].priority = prio;
+  const btns = btn.closest('.cat-priority').querySelectorAll('.prio-btn');
+  btns.forEach(b=>{ b.classList.remove('active'); });
+  btn.classList.add('active');
+}
+
+// ====== PARAMS ======
+function getParams() {
+  return {
+    skus: +document.getElementById('p-skus').value || 800,
+    days: +document.getElementById('p-days').value || 90,
+    transit: +document.getElementById('p-transit').value || 3,
+    trucks: +document.getElementById('p-trucks').value || 3,
+    capacity: +document.getElementById('p-capacity').value || 25,
+    costPerTrip: +document.getElementById('p-cost').value || 4200,
+    teamSize: +document.getElementById('p-team').value || 6,
+    workdays: +document.getElementById('p-workdays').value || 5,
+    optSpeed: document.getElementById('opt-speed').checked,
+    optCost: document.getElementById('opt-cost').checked,
+    optCold: document.getElementById('opt-cold').checked,
+    optTeam: document.getElementById('opt-team').checked,
+    cExotic: document.getElementById('c-exotic').checked,
+    cNoMix: document.getElementById('c-nomix').checked,
+    cWeekends: document.getElementById('c-weekends').checked,
+    cBuffer: document.getElementById('c-buffer').checked,
+    parallel: +document.getElementById('c-parallel').value || 2,
+  };
+}
+
+// ====== SIMULATION ENGINE ======
+let simData = null;
+let pbTimer = null;
+let pbRunning = false;
+let pbDay = 0;
+
+function runSimulation() {
+  const p = getParams();
+
+  document.getElementById('idle-state').style.display = 'none';
+  document.getElementById('sim-results').style.display = 'flex';
+  document.getElementById('run-dot').style.display = 'block';
+  document.getElementById('sim-status').textContent = 'Simulating...';
+
+  setTimeout(() => {
+    simData = simulate(p);
+    renderResults(simData, p);
+    document.getElementById('run-dot').style.display = 'none';
+    document.getElementById('sim-status').textContent = `Last run: ${new Date().toLocaleTimeString()}`;
+  }, 600);
+}
+
+function simulate(p) {
+  const totalCases = CATEGORIES.reduce((s,c)=>s+c.available, 0);
+  const totalWeight = CATEGORIES.reduce((s,c)=>s+c.net_wt, 0);
+  const totalSKUs = CATEGORIES.reduce((s,c)=>s+c.skus, 0);
+  const totalDistressed = CATEGORIES.reduce((s,c)=>s+c.distressed, 0);
+
+  const effectiveDays = p.cBuffer ? p.days - 7 : p.days;
+  const loadingDaysPerWeek = p.cWeekends ? Math.min(p.workdays, 5) : p.workdays;
+  const loadingRatio = loadingDaysPerWeek / 7;
+
+  // Trips based on CASES (real capacity = cases per truck)
+  const tripsNeeded = Math.ceil(totalCases / p.capacity);
+  const tripsPerDay = p.parallel;
+  const loadingDaysNeeded = Math.ceil(tripsNeeded / tripsPerDay);
+  const calendarDaysNeeded = Math.ceil(loadingDaysNeeded / loadingRatio) + p.transit;
+  const totalCost = tripsNeeded * p.costPerTrip;
+  const casesPerDay = Math.ceil(totalCases / loadingDaysNeeded);
+  const teamLoadPerDay = Math.round((casesPerDay / p.teamSize) * 10) / 10;
+  const weightPerTrip = Math.round(totalWeight / tripsNeeded);
+
+  const priOrder = { high:0, med:1, low:2 };
+  const sorted = [...CATEGORIES].sort((a,b) => {
+    const pa = priOrder[a.priority], pb = priOrder[b.priority];
+    if(pa !== pb) return pa - pb;
+    return b.cases - a.cases;
+  });
+
+  let daysCursor = 0;
+  const phases = sorted.map((cat) => {
+    const catTrips = Math.ceil(cat.available / p.capacity);
+    const catLoadDays = Math.ceil(catTrips / tripsPerDay);
+    const extraDays = p.cExotic && cat.name==='Exotics' ? cat.handlingDays : (cat.name==='Seafood' ? cat.handlingDays : 0);
+    const catCalDays = Math.ceil(catLoadDays / loadingRatio) + p.transit + extraDays;
+    const start = daysCursor;
+    daysCursor += catCalDays;
+    return {
+      cat, trips: catTrips, loadDays: catLoadDays, calDays: catCalDays,
+      start, end: daysCursor,
+    };
+  });
+
+  const actualDays = Math.min(daysCursor + (p.cBuffer ? 7 : 0), p.days * 1.5);
+  const onTime = actualDays <= p.days;
+
+  const plans = generatePlans(p, tripsNeeded, totalCost, actualDays, sorted, totalCases);
+  const dailyEvents = buildDailySchedule(phases, p);
+  const risks = buildRisks(p, phases, onTime, tripsNeeded, teamLoadPerDay, totalDistressed, weightPerTrip);
+  const pbEvents = buildPlaybackEvents(phases, p);
+
+  return {
+    tripsNeeded, totalCost, actualDays, onTime,
+    casesPerDay, teamLoadPerDay, weightPerTrip,
+    totalCases, totalWeight, totalSKUs, totalDistressed,
+    phases, plans, dailyEvents, risks, pbEvents,
+    kpis: {
+      duration: Math.round(actualDays),
+      cost: totalCost,
+      trips: tripsNeeded,
+      coldScore: calcColdScore(p, phases),
+      weightPerTrip,
+    }
+  };
+}
+
+function calcColdScore(p, phases) {
+  let score = 100;
+  if(!p.optCold) score -= 20;
+  if(p.transit > 5) score -= 15;
+  const exoticPhase = phases.find(ph=>ph.cat.name==='Exotics');
+  if(exoticPhase && !p.cExotic) score -= 25;
+  if(p.cNoMix) score += 5;
+  return Math.max(0, Math.min(100, score));
+}
+
+function generatePlans(p, baseTrips, baseCost, baseDays, sorted, totalCases) {
+  const planA = {
+    name: 'PLAN ALPHA', desc: 'Balanced: speed + cost + cold chain',
+    days: Math.round(baseDays), trips: baseTrips, cost: baseCost,
+    coldScore: calcColdScore(p, []), workloadScore: 78, overallScore: 84,
+    badge: 'best', order: sorted.slice(0,3).map(c=>c.name).join(' → ') + ' → …',
+  };
+  const fastTripsPerDay = Math.min(p.parallel + 1, p.trucks);
+  const fastDays = Math.ceil(Math.ceil(baseTrips/fastTripsPerDay)/(p.workdays/7)) + p.transit + (p.cBuffer?7:0);
+  const planB = {
+    name: 'PLAN BETA', desc: 'Speed-first: max parallel trucks',
+    days: Math.max(Math.round(fastDays * 0.78), 30), trips: baseTrips,
+    cost: Math.round(baseCost * 1.18), coldScore: Math.max(60, calcColdScore(p,[]) - 8),
+    workloadScore: 62, overallScore: 71, badge: 'fastest',
+    order: 'Beef → Seafood → Poultry — all parallel',
+  };
+  const consolidatedTrips = Math.ceil(baseTrips * 0.88);
+  const planC = {
+    name: 'PLAN GAMMA', desc: 'Cost-first: max load consolidation',
+    days: Math.round(baseDays * 1.22), trips: consolidatedTrips,
+    cost: Math.round(consolidatedTrips * p.costPerTrip * 0.92),
+    coldScore: Math.max(55, calcColdScore(p,[]) - 15),
+    workloadScore: 88, overallScore: 68, badge: 'cheapest',
+    order: 'Batch by weight class, max fill per truck',
+  };
+  return [planA, planB, planC];
+}
+
+function buildDailySchedule(phases, p) {
+  const events = [];
+  for(let day=1; day<=Math.min(p.days, 60); day++) {
+    const dow = ((day-1) % 7);
+    const isWeekend = p.cWeekends && (dow===5 || dow===6);
+    const dayEvts = [];
+
+    phases.forEach(ph => {
+      if(day >= ph.start+1 && day <= ph.start+ph.loadDays && !isWeekend) {
+        dayEvts.push({ type:'load', label:`Loading ${ph.cat.name} (${Math.ceil(ph.cat.skus/ph.loadDays)} SKUs)`, color:ph.cat.color });
+      }
+      if(day === ph.start + ph.loadDays + p.transit) {
+        dayEvts.push({ type:'receive', label:`DC-EAST receives ${ph.cat.name}`, color:ph.cat.color });
+      }
+      if(day > ph.start+ph.loadDays && day < ph.start+ph.loadDays+p.transit && !isWeekend) {
+        dayEvts.push({ type:'transit', label:`${ph.cat.name} in transit (RFR)`, color:ph.cat.color });
+      }
+    });
+
+    if(isWeekend) dayEvts.push({ type:'rest', label:'Weekend — no loading ops' });
+    if(p.cBuffer && day > p.days-7) dayEvts.push({ type:'rest', label:'Buffer week — QC & reconciliation' });
+
+    events.push({ day, events: dayEvts });
+  }
+  return events;
+}
+
+function buildRisks(p, phases, onTime, trips, teamLoad, totalDistressed, weightPerTrip) {
+  const risks = [];
+  if(!onTime) risks.push({ level:'high', title:'Timeline Overrun', desc:`Projected move exceeds your ${p.days}-day window. Consider increasing parallel trucks or extending the deadline.`, badge:'HIGH' });
+
+  if(totalDistressed > 0) risks.push({
+    level: totalDistressed > 5000 ? 'high' : 'med',
+    title: `${totalDistressed.toLocaleString()} Distressed Cases`,
+    desc: `Your inventory contains ${totalDistressed.toLocaleString()} distressed cases (Beef: 5,345 · Seafood: 3,111 · Other: 1,565). These must be quarantined, written off, or disposed of BEFORE move. Do NOT load onto reefer trucks.`,
+    badge: totalDistressed > 5000 ? 'HIGH' : 'MEDIUM'
+  });
+
+  if(p.transit > 4) risks.push({ level:'med', title:'Extended Transit Time', desc:`${p.transit}-day transit raises cold chain exposure risk for Seafood (30,675 available cases) and Exotics. Require GPS temp monitors and pre-cooling documentation on all trucks.`, badge:'MEDIUM' });
+
+  const exoticPhase = phases.find(ph=>ph.cat.name==='Exotics');
+  if(exoticPhase && !p.cExotic) risks.push({ level:'high', title:'Exotics Compliance Gap', desc:`102 Exotics SKUs (Lamb, Pork, Wagyu Grinds — 27,105 available cases) require special cold chain certification. Enable "special handling" to add compliance buffer days.`, badge:'HIGH' });
+  else if(exoticPhase) risks.push({ level:'low', title:'Exotics Compliance Enabled', desc:`+2 day compliance buffer factored in for 102 Exotics SKUs including Lamb racks, Pork ribs, and specialty cuts (612,928 lbs total).`, badge:'LOW' });
+
+  if(teamLoad > 300) risks.push({ level:'high', title:'Team Overload', desc:`${teamLoad} cases per person per day is extremely high. Risk of cold exposure injury, mislabelling, and loading errors. Add staff or extend the window.`, badge:'HIGH' });
+  else if(teamLoad > 150) risks.push({ level:'med', title:'High Team Workload', desc:`${teamLoad} cases/person/day is elevated. Monitor cold-room exposure time and rotation schedules.`, badge:'MEDIUM' });
+  else risks.push({ level:'low', title:'Team Workload Manageable', desc:`${teamLoad} cases/person/day across ${p.teamSize} people is within safe operational limits.`, badge:'LOW' });
+
+  risks.push({ level:'low', title:'Seafood Distress (3,111 cases)', desc:`Seafood has the second-highest distress count (9.2% of category). Recommend a targeted audit of Atlantic Salmon and Snow Crab lots before scheduling their loading phase.`, badge:'ATTENTION' });
+
+  if(weightPerTrip > 40000) risks.push({ level:'med', title:'High Weight per Trip', desc:`Average ${weightPerTrip.toLocaleString()} lbs per truck. Confirm your carrier's reefer trucks are rated for this load — standard reefer max is ~42,000 lbs. Consider splitting heaviest Beef lots.`, badge:'MEDIUM' });
+  else risks.push({ level:'low', title:'Weight per Trip', desc:`Average ${weightPerTrip.toLocaleString()} lbs per truck is within standard reefer limits.`, badge:'LOW' });
+
+  if(!p.cBuffer) risks.push({ level:'med', title:'No Buffer Week', desc:'No buffer before go-live. Any delay cascades directly into DC-EAST readiness. Strongly recommend 7-day buffer.', badge:'MEDIUM' });
+  else risks.push({ level:'low', title:'Buffer Week Enabled', desc:'7-day buffer before go-live provides recovery window for QC, receiving backlogs, and system cutover.', badge:'LOW' });
+
+  if(p.cNoMix) risks.push({ level:'low', title:'Category Purity Enforced', desc:'Single-category trucks ensure cold chain integrity and simplify DC-EAST receiving. Ideal for Beef (largest volume at 121K cases).', badge:'LOW' });
+  else risks.push({ level:'med', title:'Mixed-Category Loads', desc:'Mixed loads save trips but complicate receiving sorting and category-level traceability. Especially risky for Seafood mixed with Beef.', badge:'MEDIUM' });
+
+  return risks;
+}
+
+function buildPlaybackEvents(phases, p) {
+  const evts = [];
+  for(let day=1; day<=p.days; day++) {
+    const dow = (day-1) % 7;
+    const isWeekend = p.cWeekends && (dow===5||dow===6);
+    const active = [];
+    const arrivals = [];
+    phases.forEach(ph => {
+      if(day >= ph.start+1 && day <= ph.start+ph.loadDays && !isWeekend) active.push(ph.cat);
+      if(day === ph.start+ph.loadDays+p.transit) arrivals.push(ph.cat);
+    });
+    evts.push({ day, active, arrivals, isWeekend });
+  }
+  return evts;
+}
+
+// ====== RENDER RESULTS ======
+function renderResults(data, p) {
+  renderKPIs(data);
+  renderPlans(data.plans);
+  renderGantt(data.phases, p);
+  renderDaily(data.dailyEvents);
+  renderRisks(data.risks);
+  initPlayback(data.pbEvents, p);
+  renderRecommendation(data, p);
+}
+
+function renderKPIs(data) {
+  const { kpis, onTime, totalCases, totalWeight, tripsNeeded } = data;
+  document.getElementById('kpi-grid').innerHTML = `
+    <div class="score-card ${onTime?'green':'red'}">
+      <div class="score-label">Projected Duration</div>
+      <div class="score-value ${onTime?'green':'red'}">${kpis.duration}<span style="font-size:16px">d</span></div>
+      <div class="score-sub">${onTime?'✓ Within window':'⚠ Exceeds window'}</div>
+    </div>
+    <div class="score-card amber">
+      <div class="score-label">Total Move Cost</div>
+      <div class="score-value amber">$${(kpis.cost/1000).toFixed(0)}k</div>
+      <div class="score-sub">${tripsNeeded} reefer trips · $${kpis.cost.toLocaleString()}</div>
+    </div>
+    <div class="score-card blue">
+      <div class="score-label">Cases to Move</div>
+      <div class="score-value blue">${(totalCases/1000).toFixed(0)}<span style="font-size:16px">K</span></div>
+      <div class="score-sub">${(totalWeight/1000000).toFixed(2)}M lbs · ${tripsNeeded} trips</div>
+    </div>
+    <div class="score-card ${kpis.coldScore>=80?'green':kpis.coldScore>=60?'amber':'red'}">
+      <div class="score-label">Cold Chain Score</div>
+      <div class="score-value ${kpis.coldScore>=80?'green':kpis.coldScore>=60?'amber':'red'}">${kpis.coldScore}<span style="font-size:16px">/100</span></div>
+      <div class="score-sub">${kpis.coldScore>=80?'Excellent integrity':'Needs attention'}</div>
+    </div>`;
+}
+
+let selectedPlan = 0;
+function renderPlans(plans) {
+  document.getElementById('plans-grid').innerHTML = plans.map((plan,i)=>`
+    <div class="plan-card ${i===0?'selected':''} ${plan.badge==='best'?'best':''}" onclick="selectPlan(${i})" id="plan-card-${i}">
+      ${plan.badge ? `<div class="plan-badge ${plan.badge}">${plan.badge==='best'?'★ RECOMMENDED':plan.badge==='fastest'?'⚡ FASTEST':'💰 CHEAPEST'}</div>` : ''}
+      <div class="plan-name">${plan.name}</div>
+      <div style="font-size:11px;color:var(--ink3);margin-bottom:10px;font-style:italic">${plan.desc}</div>
+      <div class="plan-stats">
+        <div class="plan-stat"><span class="plan-stat-key">Duration</span><span class="plan-stat-val">${plan.days} days</span></div>
+        <div class="plan-stat"><span class="plan-stat-key">Trips</span><span class="plan-stat-val">${plan.trips} trucks</span></div>
+        <div class="plan-stat"><span class="plan-stat-key">Total Cost</span><span class="plan-stat-val">$${plan.cost.toLocaleString()}</span></div>
+        <div class="plan-stat"><span class="plan-stat-key">Cold Score</span><span class="plan-stat-val">${plan.coldScore}/100</span></div>
+        <div class="plan-stat"><span class="plan-stat-key">Category Order</span><span class="plan-stat-val" style="font-size:10px;text-align:right;max-width:160px">${plan.order}</span></div>
+      </div>
+      <div class="plan-score" style="margin-top:10px;">
+        <span style="font-family:var(--mono);font-size:10px;color:var(--ink3)">Score</span>
+        <div class="plan-score-bar"><div class="plan-score-fill" style="width:${plan.overallScore}%;background:${i===0?'var(--accent3)':i===1?'var(--accent2)':'var(--warn)'}"></div></div>
+        <span style="font-family:var(--mono);font-size:11px;font-weight:600">${plan.overallScore}</span>
+      </div>
+    </div>`).join('');
+}
+
+function selectPlan(i) {
+  document.querySelectorAll('.plan-card').forEach((c,j)=>c.classList.toggle('selected',j===i));
+  selectedPlan = i;
+}
+
+function renderGantt(phases, p) {
+  const totalDays = p.days;
+  const cols = Math.min(totalDays, 90);
+
+  // Build day markers (every 10 days)
+  const markers = [];
+  for(let d=10; d<=cols; d+=10) markers.push(d);
+
+  document.getElementById('gantt-table').innerHTML = `
+    <thead>
+      <tr>
+        <th style="width:110px">Category</th>
+        <th style="width:60px">Cases</th>
+        <th style="width:60px">Trips</th>
+        <th class="gantt-bar-cell">
+          <div style="position:relative;height:20px;">
+            ${markers.map(d=>`<span style="position:absolute;left:${(d/cols*100).toFixed(1)}%;font-size:9px;color:var(--ink3);transform:translateX(-50%)">Day ${d}</span>`).join('')}
+          </div>
+        </th>
+      </tr>
+    </thead>
+    <tbody>
+      ${phases.map(ph=>{
+        const pct = (ph.start/cols*100).toFixed(1);
+        const wPct = (ph.calDays/cols*100).toFixed(1);
+        const loadW = (ph.loadDays/cols*100).toFixed(1);
+        const transitW = (p.transit/cols*100).toFixed(1);
+        const loadPct = pct;
+        const transitPct = ((ph.start+ph.loadDays)/cols*100).toFixed(1);
+        return `<tr>
+          <td style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;">
+            <span style="width:8px;height:8px;border-radius:50%;background:${ph.cat.color};flex-shrink:0;display:inline-block"></span>${ph.cat.name}
+          </td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--ink3)">${(ph.cat.available/1000).toFixed(0)}K</td>
+          <td style="font-family:var(--mono);font-size:11px;color:var(--ink3)">${ph.trips}</td>
+          <td class="gantt-bar-cell">
+            <div class="gantt-bar-track">
+              ${markers.map(d=>`<div class="gantt-day-marker" style="left:${(d/cols*100).toFixed(1)}%"></div>`).join('')}
+              <div class="gantt-bar" style="left:${loadPct}%;width:${loadW}%;background:${ph.cat.color};opacity:0.9" title="Loading: Day ${ph.start+1}–${ph.start+ph.loadDays}">
+                ${parseFloat(loadW)>5?'Loading':''}
+              </div>
+              <div class="gantt-bar" style="left:${transitPct}%;width:${transitW}%;background:${ph.cat.color};opacity:0.4" title="Transit: ${p.transit} days">
+                ${parseFloat(transitW)>5?'Transit':''}
+              </div>
+            </div>
+          </td>
+        </tr>`;
+      }).join('')}
+    </tbody>`;
+}
+
+function renderDaily(events) {
+  const el = document.getElementById('daily-schedule');
+  el.innerHTML = events.map(({day, events})=>{
+    if(events.length===0) return '';
+    return `<div class="day-row">
+      <div class="day-num">
+        <div>${day}</div>
+        <div class="day-label">Day</div>
+      </div>
+      <div class="day-events">
+        ${events.map(e=>`<div class="day-event ${e.type}">${e.label}</div>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderRisks(risks) {
+  document.getElementById('risk-grid').innerHTML = risks.map(r=>`
+    <div class="risk-item">
+      <div class="risk-level ${r.level}"></div>
+      <div>
+        <div class="risk-title">${r.title}</div>
+        <div class="risk-desc">${r.desc}</div>
+        <span class="risk-badge ${r.level}">${r.badge}</span>
+      </div>
+    </div>`).join('');
+}
+
+// ====== PLAYBACK ======
+function initPlayback(events, p) {
+  pbDay = 0;
+  pbRunning = false;
+  document.getElementById('pb-total').textContent = events.length;
+  document.getElementById('pb-play').textContent = '▶ Play';
+  document.getElementById('pb-play').classList.remove('active');
+  clearInterval(pbTimer);
+  renderPBFrame(events, 0);
+  // auto-start
+  setTimeout(()=>{ pbRunning=true; document.getElementById('pb-play').textContent='⏸ Pause'; document.getElementById('pb-play').classList.add('active'); pbAdvance(events, p); }, 800);
+}
+
+function pbAdvance(events, p) {
+  clearInterval(pbTimer);
+  const speed = +document.getElementById('pb-speed').value;
+  pbTimer = setInterval(()=>{
+    if(!pbRunning || pbDay >= events.length-1) { clearInterval(pbTimer); pbRunning=false; document.getElementById('pb-play').textContent='▶ Play'; document.getElementById('pb-play').classList.remove('active'); return; }
+    pbDay++;
+    renderPBFrame(events, pbDay);
+  }, speed);
+}
+
+function renderPBFrame(events, idx) {
+  const evt = events[idx];
+  if(!evt) return;
+  const p = getParams();
+  document.getElementById('pb-day').textContent = evt.day;
+  document.getElementById('pb-fill').style.width = ((idx+1)/events.length*100)+'%';
+  document.getElementById('pb-event').textContent = evt.isWeekend ? 'Weekend' : evt.active.length ? `Loading: ${evt.active.map(c=>c.name).join(', ')}` : evt.arrivals.length ? `Receiving at DC-EAST` : 'Transit day';
+
+  // Board
+  const board = document.getElementById('pb-board');
+  const catState = {};
+  CATEGORIES.forEach(c=>catState[c.name]={status:'pending',skusLeft:c.skus});
+  events.slice(0,idx+1).forEach(e=>{
+    e.active.forEach(c=>{ catState[c.name].status='loading'; });
+    e.arrivals.forEach(c=>{ catState[c.name].status='done'; catState[c.name].skusLeft=0; });
+  });
+  // estimate skus remaining
+  events.slice(0,idx+1).forEach(e=>{
+    e.active.forEach(c=>{
+      const cat = CATEGORIES.find(x=>x.name===c.name);
+      if(cat && catState[c.name].status==='loading') catState[c.name].skusLeft = Math.max(0, catState[c.name].skusLeft - Math.ceil(cat.skus/events.filter(ev=>ev.active.some(a=>a.name===c.name)).length));
+    });
+  });
+  board.innerHTML = CATEGORIES.map(c=>{
+    const st = catState[c.name];
+    const pct = Math.round((1 - st.skusLeft/c.skus)*100);
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:10px;">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+        <div style="width:8px;height:8px;border-radius:50%;background:${c.color}"></div>
+        <span style="font-size:11px;font-weight:600">${c.name}</span>
+        <span style="margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--ink3)">${st.status.toUpperCase()}</span>
+      </div>
+      <div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;">
+        <div style="height:100%;width:${Math.min(pct,100)}%;background:${c.color};border-radius:3px;transition:width 0.3s"></div>
+      </div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--ink3);margin-top:4px">${Math.min(pct,100)}% moved</div>
+    </div>`;
+  }).join('');
+
+  // Log
+  const log = document.getElementById('pb-log');
+  if(evt.active.length || evt.arrivals.length || idx===0) {
+    const line = document.createElement('div');
+    line.style.color = evt.arrivals.length ? 'var(--accent3)' : evt.isWeekend ? 'var(--ink3)' : 'var(--ink2)';
+    line.textContent = `[Day ${evt.day}] ${evt.isWeekend ? '— Weekend' : evt.active.length ? `Loading: ${evt.active.map(c=>c.name).join(', ')}` : evt.arrivals.length ? `✓ DC-EAST received: ${evt.arrivals.map(c=>c.name).join(', ')}` : 'Transit'}`;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+  }
+}
+
+function pbToggle() {
+  if(!simData) return;
+  pbRunning = !pbRunning;
+  document.getElementById('pb-play').textContent = pbRunning ? '⏸ Pause' : '▶ Play';
+  document.getElementById('pb-play').classList.toggle('active', pbRunning);
+  if(pbRunning) pbAdvance(simData.pbEvents, getParams());
+  else clearInterval(pbTimer);
+}
+function pbRewind() {
+  clearInterval(pbTimer); pbDay=0; pbRunning=false;
+  document.getElementById('pb-play').textContent='▶ Play';
+  document.getElementById('pb-play').classList.remove('active');
+  document.getElementById('pb-log').innerHTML='';
+  if(simData) renderPBFrame(simData.pbEvents, 0);
+}
+function pbStep() {
+  clearInterval(pbTimer); pbRunning=false;
+  document.getElementById('pb-play').textContent='▶ Play';
+  document.getElementById('pb-play').classList.remove('active');
+  if(simData && pbDay < simData.pbEvents.length-1) { pbDay++; renderPBFrame(simData.pbEvents, pbDay); }
+}
+function pbClick(e) {
+  if(!simData) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const pct = (e.clientX - rect.left) / rect.width;
+  pbDay = Math.round(pct * (simData.pbEvents.length-1));
+  renderPBFrame(simData.pbEvents, pbDay);
+}
+
+// ====== TABS ======
+function switchTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+// ====== RECOMMENDATION ======
+function renderRecommendation(data, p) {
+  const plan = data.plans[0];
+  const issues = data.risks.filter(r=>r.level==='high').length;
+  const box = document.getElementById('recommendation-box');
+  box.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start;">
+      <div>
+        <div style="font-family:var(--display);font-size:24px;letter-spacing:2px;color:var(--bg);margin-bottom:10px;">★ RECOMMENDED PLAN: ALPHA</div>
+        <div style="font-size:13px;color:#ccc;line-height:1.7;max-width:700px;">
+          Moving <strong style="color:#fff">${data.totalCases.toLocaleString()} cases</strong> (${(data.totalWeight/1000000).toFixed(2)}M lbs) across <strong style="color:#fff">${data.totalSKUs} SKUs</strong> in <strong style="color:#fff">${plan.days} days</strong> via <strong style="color:#fff">${data.tripsNeeded} reefer trips</strong>.
+          Start with <strong style="color:#fff">Beef</strong> (121,908 cases — your biggest volume by far) and <strong style="color:#fff">Poultry</strong>.
+          Run <strong style="color:#fff">${Math.min(p.parallel, p.trucks)} trucks in parallel</strong> at ${p.capacity} cases/truck.
+          <br><br>
+          ⚠ <strong style="color:#f8b">Resolve ${data.totalDistressed.toLocaleString()} distressed cases first</strong> — Beef (5,345), Seafood (3,111), and Other (1,565) all have distressed stock that must NOT be loaded.
+          ${issues > 0 ? `<br><br>⚠ <strong style="color:#f88">${issues} HIGH risk item${issues>1?'s':''}</strong> detected — review the Risk Analysis tab before committing.` : '<br><br>✓ <strong style="color:#6f6">No critical blocking risks.</strong> Clear to proceed once distressed cases are resolved.'}
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-family:var(--mono);font-size:10px;color:#666;margin-bottom:4px;">OVERALL SCORE</div>
+        <div style="font-family:var(--display);font-size:64px;color:${plan.overallScore>=80?'#1a8c3a':plan.overallScore>=65?'#c87a1a':'#c8371a'};line-height:1">${plan.overallScore}</div>
+        <div style="font-family:var(--mono);font-size:10px;color:#666">/ 100</div>
+        <div style="font-family:var(--mono);font-size:10px;color:#888;margin-top:8px">Est. cost<br><span style="color:#fff;font-size:14px">$${plan.cost.toLocaleString()}</span></div>
+      </div>
+    </div>`;
+}
+
+// ====== EXPORT ======
+function exportPlan() {
+  if(!simData) { alert('Run a simulation first.'); return; }
+  const p = getParams();
+  const plan = simData.plans[selectedPlan];
+  const lines = [
+    '=== WILDFORK FOODS — DC MOVE SIMULATION PLAN ===',
+    `Generated: ${new Date().toLocaleString()}`,
+    '',
+    '--- REAL INVENTORY LOADED ---',
+    `Source: Wildfork_InventoryDetails.xlsx`,
+    `Total SKUs: ${simData.totalSKUs}`,
+    `Total Cases: ${simData.totalCases.toLocaleString()}`,
+    `Total Weight: ${simData.totalWeight.toLocaleString()} lbs`,
+    `Available Cases: ${CATEGORIES.reduce((s,c)=>s+c.available,0).toLocaleString()}`,
+    `Distressed Cases: ${simData.totalDistressed.toLocaleString()} ⚠ MUST RESOLVE BEFORE MOVE`,
+    '',
+    '--- SIMULATION PARAMETERS ---',
+    `Move Window: ${p.days} days`,
+    `Transit Time: ${p.transit} days per trip`,
+    `Trucks Available: ${p.trucks}`,
+    `Cases per Truck: ${p.capacity}`,
+    `Cost per Trip: $${p.costPerTrip}`,
+    `Team Size: ${p.teamSize}`,
+    `Parallel Trucks: ${p.parallel}`,
+    '',
+    '--- SELECTED PLAN ---',
+    `Plan: ${plan.name}`,
+    `Duration: ${plan.days} days`,
+    `Total Trips: ${plan.trips}`,
+    `Total Cost: $${plan.cost.toLocaleString()}`,
+    `Cold Chain Score: ${plan.coldScore}/100`,
+    `Overall Score: ${plan.overallScore}/100`,
+    '',
+    '--- PHASE SCHEDULE (by category, sorted by priority) ---',
+    ...simData.phases.map(ph=>`${ph.cat.name}: ${ph.cat.available.toLocaleString()} cases | ${ph.cat.skus} SKUs | Start Day ${ph.start+1} | Loading ${ph.loadDays}d | Transit ${p.transit}d | End Day ${ph.end} | ${ph.trips} trips | ${(ph.cat.net_wt/1000).toFixed(0)}K lbs`),
+    '',
+    '--- DISTRESSED CASES (DO NOT LOAD) ---',
+    ...CATEGORIES.filter(c=>c.distressed>0).map(c=>`${c.name}: ${c.distressed.toLocaleString()} distressed cases — quarantine or write off before move`),
+    '',
+    '--- RISKS ---',
+    ...simData.risks.map(r=>`[${r.badge}] ${r.title}: ${r.desc}`),
+    '',
+    '--- CATEGORY PRIORITIES & VOLUMES ---',
+    ...CATEGORIES.map(c=>`${c.name}: ${c.priority.toUpperCase()} priority | ${c.skus} SKUs | ${c.cases.toLocaleString()} cases | ${(c.net_wt/1000).toFixed(0)}K lbs | ${c.distressed>0?c.distressed+' distressed':' clean'}`),
+  ];
+  const blob = new Blob([lines.join('\n')], {type:'text/plain'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='wildfork-dc-move-plan.txt'; a.click();
+}
+
+// ====== INIT ======
+renderCatPriorityList();
+</script>
+</body>
+</html>
